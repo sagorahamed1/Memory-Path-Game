@@ -1,15 +1,14 @@
-
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:provider/provider.dart';
 
 void main() {
   runApp(const MemoryPathDynamic());
 }
 
 class MemoryPathDynamic extends StatelessWidget {
-  const MemoryPathDynamic({super.key});
+  const MemoryPathDynamic({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -17,59 +16,46 @@ class MemoryPathDynamic extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Memory Path Game',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MemoryPathGame(),
+      home: ChangeNotifierProvider(
+        create: (_) => GameProvider(),
+        child: const MemoryPathGame(),
+      ),
     );
   }
 }
 
-class MemoryPathGame extends StatefulWidget {
-  const MemoryPathGame({super.key});
+class GameProvider extends ChangeNotifier {
+  late List<List<String?>> grid;  // The grid where items are placed.
+  late List<String> draggableItems; // The items to be dragged and placed in the grid.
+  final int gridSize = 3;  // The grid is 3x3.
+  bool gameStarted = false;  // Flag to check if the game has started.
+  int timeLeft = 30;  // Timer for the game.
+  int score = 0;  // Player's score.
+  bool gameOver = false;  // Flag to check if the game is over.
+  bool allItemsPlaced = false;  // Flag to check if all items have been placed correctly.
+  Random random = Random();  // Random instance for placing items in random grid spots.
+  late Timer displayTimer;  // Timer to display the items for 3 seconds at the beginning.
+  late Timer gameTimer;  // Timer to countdown the game time.
 
-  @override
-  MemoryPathGameState createState() => MemoryPathGameState();
-}
-
-
-class MemoryPathGameState extends State<MemoryPathGame> {
-  late List<List<String?>> grid;
-  late List<String> draggableItems;
-  final int gridSize = 3;
-  bool gameStarted = false;
-  int timeLeft = 30;
-  int score = 0;
-  bool gameOver = false;
-  bool allItemsPlaced = false;
-  Random random = Random();
-  late Timer displayTimer;
-  late Timer gameTimer;
-
-  @override
-  void initState() {
-    super.initState();
+  GameProvider() {
     _startGame();
   }
 
-  @override
-  void dispose() {
-    displayTimer.cancel();
-    if (gameTimer.isActive) gameTimer.cancel();
-    super.dispose();
-  }
-
-
   ///=============================GAME START=====================================>>>
-
+  // Method to start the game, initialize grid, draggable items, and randomize item placement.
   void _startGame() {
-    grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
+    grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null)); // Initialize grid with nulls.
     draggableItems = [];
 
-    ///===========================ITEMS OF FOOD===============================>>>>
-
+    // List of items to be dragged.
     List<String> items = ['🍎', '🍌', '🍇', '🍓', '🍍', '🍒'];
+
+    // Randomly place items in the grid.
     for (int i = 0; i < gridSize; i++) {
       int x = random.nextInt(gridSize);
       int y = random.nextInt(gridSize);
 
+      // Ensure that no two items occupy the same grid spot.
       while (grid[y][x] != null) {
         x = random.nextInt(gridSize);
         y = random.nextInt(gridSize);
@@ -79,206 +65,202 @@ class MemoryPathGameState extends State<MemoryPathGame> {
       draggableItems.add(items[i]);
     }
 
-    draggableItems.shuffle();
+    draggableItems.shuffle(); // Shuffle the items to randomize their order.
 
+    // Show items for 3 seconds, then hide them and start the game.
     displayTimer = Timer(const Duration(seconds: 3), () {
-      setState(() {
-        gameStarted = true;
-        grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
-        _startGameTimer();
-      });
+      gameStarted = true; // Game has started after 3 seconds.
+      grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null)); // Clear the grid.
+      _startGameTimer(); // Start the game timer.
+      notifyListeners(); // Notify listeners (UI) to rebuild.
     });
   }
 
-
-  ///=============================START GAME TIME=======================================>>>
-
+  ///=============================START GAME TIMER=======================================>>>
+  // Starts a countdown timer for the game.
   void _startGameTimer() {
     gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (timeLeft > 0) {
-          timeLeft--;
-        } else {
-          gameTimer.cancel();
-          _endGame(false);
-        }
-      });
+      if (timeLeft > 0) {
+        timeLeft--;
+      } else {
+        gameTimer.cancel();
+        _endGame(false); // If time runs out, end the game with failure.
+      }
+      notifyListeners(); // Notify listeners to update the UI.
     });
   }
-
 
   ///============================== GAME END===========================================>>>
-
-
+  // Ends the game, either with success or failure.
   void _endGame(bool success) {
-    setState(() {
-      gameOver = true;
-      allItemsPlaced = success;
-    });
-    if (gameTimer.isActive) gameTimer.cancel();
+    gameOver = true;
+    allItemsPlaced = success; // Check if all items were placed correctly.
+    gameTimer.cancel(); // Stop the game timer.
+    notifyListeners(); // Notify listeners to rebuild UI.
   }
-
 
   ///=================================RESTART GAME=============================>>>
-
-
-  void _restartGame() {
-    setState(() {
-      gameStarted = false;
-      gameOver = false;
-      timeLeft = 30;
-      score = 0;
-    });
-    _startGame();
+  // Method to restart the game, resetting all variables.
+  void restartGame() {
+    gameStarted = false;
+    gameOver = false;
+    timeLeft = 30;
+    score = 0;
+    _startGame(); // Start a new game after restarting.
+    notifyListeners(); // Notify listeners to rebuild UI.
   }
 
-
   ///==================================CHECK COMPLETION===========================>>>
-
+  // Checks if all items have been placed correctly in the grid.
   void _checkCompletion() {
-    if (draggableItems.isEmpty) {
-      _endGame(true);
+    if (draggableItems.isEmpty) { // If no items are left to drag, check if the game is complete.
+      _endGame(true); // End the game with success if all items are placed.
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-
-
-      ///=====================================APP BAR =====================================>>>
-
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Memory Path Game'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _restartGame,
-          ),
-        ],
-      ),
-
-
-      ///==================================BODY SECTION===================================>>>
-      ///==When game is over show you are wid or game is over now try again===>
-
-      body: gameOver
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              allItemsPlaced ? '🎉 You Win! 🎉' : '💥 Game Over 💥',
-              style: const TextStyle(fontSize: 36),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _restartGame,
-              child: const Text('Play Again'),
-            ),
-          ],
-        ),
-      )
-          : Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: LinearProgressIndicator(
-              value: timeLeft / 30,
-              color: Colors.blue,
-              backgroundColor: Colors.grey[300],
-            ),
-          ),
-
-
-          ///======================FOODS GRID ====================================>>>
-
-          Expanded(
-            child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: gridSize,
-              ),
-              itemCount: gridSize * gridSize,
-              itemBuilder: (context, index) {
-                int x = index % gridSize;
-                int y = index ~/ gridSize;
-                return DragTarget<String>(
-                  onWillAccept: (data) => grid[y][x] == null,
-                  onAccept: (data) {
-                    setState(() {
-                      grid[y][x] = data;
-                      draggableItems.remove(data);
-                      score += 10;
-                      _checkCompletion();
-                    });
-                  },
-                  builder: (context, candidateData, rejectedData) {
-                    return Container(
-                      margin: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: candidateData.isEmpty
-                            ? Colors.grey[300]
-                            : Colors.blue[100],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.black),
-                      ),
-                      child: Center(
-                        child: Text(
-                          grid[y][x] ?? '',
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-
-
-          ///================================ALL FOOD HERE DRAG ABLE=======================>>>
-
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: draggableItems.map((item) {
-              return Draggable<String>(
-                data: item,
-                feedback: Material(
-                  child: Text(
-                    item,
-                    style: const TextStyle(
-                        fontSize: 30, color: Colors.black),
-                  ),
-                ),
-                childWhenDragging: Container(),
-                child: Container(
-                  margin: const EdgeInsets.all(8.0),
-                  padding: const EdgeInsets.all(8.0),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: Text(
-                    item,
-                    style: const TextStyle(
-                        fontSize: 24, color: Colors.white),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
+  // Method that handles what happens when an item is dropped onto a grid cell.
+  void onAcceptItem(String item, int x, int y) {
+    grid[y][x] = item; // Place the item in the grid.
+    draggableItems.remove(item); // Remove the item from draggable list.
+    score += 10; // Increase score.
+    _checkCompletion(); // Check if the game is completed.
+    notifyListeners(); // Notify listeners to update the UI.
   }
 }
 
 
 
+class MemoryPathGame extends StatelessWidget {
+  const MemoryPathGame({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('Memory Path Game'),
+        actions: [
+          // Refresh button to restart the game.
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<GameProvider>().restartGame(); // Restart the game when clicked.
+            },
+          ),
+        ],
+      ),
+      body: Consumer<GameProvider>(
+        builder: (context, game, child) {
+          // If the game is over, show win or lose message.
+          return game.gameOver
+              ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Display win or game over message.
+                Text(
+                  game.allItemsPlaced ? '🎉 You Win! 🎉' : '💥 Game Over 💥',
+                  style: const TextStyle(fontSize: 36),
+                ),
+                const SizedBox(height: 20),
+                // Button to restart the game.
+                ElevatedButton(
+                  onPressed: () {
+                    game.restartGame();
+                  },
+                  child: const Text('Play Again'),
+                ),
+              ],
+            ),
+          )
+              : Column(
+            children: [
+              /// Timer progress indicator.
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: LinearProgressIndicator(
+                  value: game.timeLeft / 30,
+                  color: Colors.blue,
+                  backgroundColor: Colors.grey[300],
+                ),
+              ),
+              Expanded(
+                /// Grid view of draggable items.
+                child: GridView.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: game.gridSize,
+                  ),
+                  itemCount: game.gridSize * game.gridSize,
+                  itemBuilder: (context, index) {
+                    int x = index % game.gridSize;
+                    int y = index ~/ game.gridSize;
+                    return DragTarget<String>(
+                      onWillAccept: (data) => game.grid[y][x] == null, // Only accept if grid cell is empty.
+                      onAccept: (data) {
+                        game.onAcceptItem(data, x, y); // Place the item in the grid.
+                      },
+                      builder: (context, candidateData, rejectedData) {
+                        return Container(
+                          margin: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: candidateData.isEmpty
+                                ? Colors.grey[300]
+                                : Colors.blue[100],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.black),
+                          ),
+                          child: Center(
+                            child: Text(
+                              game.grid[y][x] ?? '',
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+
+
+              ///========================= Display the draggable items======================
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: game.draggableItems.map((item) {
+                  return Draggable<String>(
+                    data: item,
+                    feedback: Material(
+                      child: Text(
+                        item,
+                        style: const TextStyle(fontSize: 30, color: Colors.black),
+                      ),
+                    ),
+                    childWhenDragging: Container(),
+                    child: Container(
+                      margin: const EdgeInsets.all(8.0),
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Text(
+                        item,
+                        style: const TextStyle(fontSize: 24, color: Colors.white),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
 
 
 
